@@ -1,66 +1,79 @@
 package main
 
-import rlp "./go-rlp"
 import (
+	"github.com/Myriad-Dreamin/go-rlp/rlp"
 	"fmt"
 	"io"
+	"errors"
 )
 
 type Atom interface{}
 type Mty struct {
 	G Atom
-	T uint
 }
 
 func (mt *Mty) EncodeRLP(w io.Writer) (err error) {
 	if mt == nil {
-		err = rlp.Encode(w, []uint{0})
-	} else if mt.T == 1 {
-		var bt []byte
-		bt, err = rlp.EncodeToBytes(mt.G.(*Mty))
-		if err != nil {
-			return
-		}
-		err = rlp.Encode(w, bt)
-	} else {
-		err = rlp.Encode(w, mt.G)
-		if err != nil {
-			return
-		}
+		return errors.New("nil node")
 	}
-	return
-}
+	switch mt.G.(type) {
+	
+	case []Atom: // as list
+		var lis = mt.G.([]Atom)
+		var enc_lis = make([][]byte, 0)
+		var enc_ele []byte
+		for _, ele := range lis {
+			enc_ele, err = rlp.EncodeToBytes(ele.(*Mty))
+			if err != nil {
+				return
+			}
+			enc_lis = append(enc_lis, enc_ele)
+		}
+		fmt.Println(enc_lis)
+		enc_ele, err = rlp.EncodeToBytes(enc_lis)
+		if err != nil {
+			return
+		}
+		enc_lis = make([][]byte, 0)
 
-type Mtx struct {
-	Y []byte
-	T int
+		return rlp.Encode(w, append(enc_lis, enc_ele))
+	
+	case []byte:// as bytes
+		return rlp.Encode(w, mt.G.([]byte))
+		
+	default:
+		return errors.New("unrecognized Atom type")
+	}
 }
 
 func main() {
 	var mt *Mty
 	bt, err := rlp.EncodeToBytes(mt)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Exception:", err)
 	}
 	fmt.Printf("%v -> %X \n", mt, bt)
-	fmt.Println(bt)
 	
-	mt = &Mty{G:&Mty{G:[]byte("here"), T:2}, T:1}
+	mt = &Mty{G:append(make([]Atom, 0), &Mty{G:[]byte("here")}, &Mty{G:[]byte("here")})}
 	bt, err = rlp.EncodeToBytes(mt)
 	if err != nil {
 		fmt.Println(err)
 	}
 	fmt.Printf("%v -> %X \n", mt, bt)
-	fmt.Println(bt)
 
-	var mx * Mtx
-	bt, err = rlp.EncodeToBytes(mx)
+	var node Mty
+	err = rlp.DecodeBytes(bt, &node)
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Printf("%v -> %X \n", mx, bt)
-	mx = &Mtx{Y:[]byte("Here"), T:2}
-	bt, err = rlp.EncodeToBytes(mx)
-	fmt.Printf("%v -> %X \n", mx, bt)
 
+	fmt.Println("decode ret:", node, node.G)
+	
+	var dec_lis []Atom
+	err = rlp.DecodeBytes(node.G.([]byte), &dec_lis)
+	if err != nil {
+		fmt.Println(err)
+	}
+	node.G = dec_lis
+	fmt.Println("decode ret:", node, node.G)
 }
